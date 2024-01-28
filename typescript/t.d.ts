@@ -1,4 +1,4 @@
-import type { $OmitArrayKeys, $PreservedValue, $Dictionary, $SpecialObject } from './helpers.js';
+import type { $OmitArrayKeys, $Dictionary, $SpecialObject } from './helpers.js';
 import type {
   TypeOptions,
   Namespace,
@@ -133,16 +133,37 @@ export type ParseKeys<
 /** *******************************************************
  * Parse t function return type and interpolation values *
  ******************************************************** */
-type ParseInterpolationValues<Ret> =
+type ParseInterpolationValues<Value extends string, Format> = Format extends 'number' | 'currency'
+  ? Record<Value, Parameters<Intl.NumberFormat['format']>[0]> & {
+      formatParams?: Partial<Record<Value, Intl.NumberFormatOptions>>;
+    }
+  : Format extends 'datetime'
+  ? Record<Value, Parameters<Intl.DateTimeFormat['format']>[0]> & {
+      formatParams?: Partial<Record<Value, Intl.DateTimeFormatOptions>>;
+    }
+  : Format extends 'relativetime'
+  ? Record<Value, Parameters<Intl.RelativeTimeFormat['format']>[0]> & {
+      formatParams?: Partial<Record<Value, Intl.RelativeTimeFormatOptions>>;
+    }
+  : Format extends 'list'
+  ? Record<Value, Parameters<Intl.ListFormat['format']>[0]> & {
+      formatParams?: Partial<Record<Value, Intl.ListFormatOptions>>;
+    }
+  : // For custom and unknown types, allow any value
+    Record<Value, any>;
+
+type InterpolationMap<Ret> =
+  // Recursively parse each value within braces
   Ret extends `${string}${_InterpolationPrefix}${infer Value}${_InterpolationSuffix}${infer Rest}`
-    ?
-        | (Value extends `${infer ActualValue},${string}` ? ActualValue : Value)
-        | ParseInterpolationValues<Rest>
-    : never;
-type InterpolationMap<Ret> = Record<
-  $PreservedValue<ParseInterpolationValues<Ret>, string>,
-  unknown
->;
+    ? // Handle format names like `{{val, number}}`
+      (Value extends `${infer ActualValue},${string}${infer Format}`
+        ? // Remove parameters from format names like `{{val, number(minimumFractionDigits: 2)}}`
+          Format extends `${infer ActualFormat}(${string}`
+          ? ParseInterpolationValues<ActualValue, ActualFormat>
+          : ParseInterpolationValues<ActualValue, Format>
+        : Record<Value, any>) &
+        InterpolationMap<Rest>
+    : {};
 
 type ParseTReturnPlural<
   Res,
@@ -237,19 +258,34 @@ type AppendKeyPrefix<Key, KPrefix> = KPrefix extends string
 /** ************************
  * T function declaration *
  ************************* */
-export interface TFunction<Ns extends Namespace = DefaultNamespace, KPrefix = undefined> {
+// Changes:
+// 1. Removed `TemplateStringsArray` from the type that `Key` extends. We did this to
+//    support the next change.
+// 2. Replaced `InterpolationMap<Ret>` with `InterpolationMap<Key>`. We did this to get
+//    better type inference (for interpolations mostly) without needing to provide our resources
+//    file to the i18next types, which triggered a TS crash in versions of i18next before v23.3.0.
+//    The reason this works is because we use key fallback.
+// 3. Replaced `args` union type with a ternary, making options required if the key contains an
+//    interpolation. This ensures we never forget to pass variables for interpolations.
+// 4. Removed `TOpt` and replaced all usages with `TOptions`. The reason that we did this is that
+//    `TOpt` was too permissive in what was allowed to be passed as an option, and this caused a
+//    a mistake when renaming an interpolation (we didn't get an error that reminded us to rename the
+//    corresponding entry in formatParams).
+//
+// We cannot merge this into mainline because:
+//
+// This currently doesn't support custom types, where `resources` is a literal object type with
+// defined keys. Many tests are failing. We use a generic `ResourceLanguage`, so it doesn't matter.
+export interface TFunction<Ns extends Namespace = _DefaultNamespace, KPrefix = undefined> {
   $TFunctionBrand: $IsResourcesDefined extends true ? `${$FirstNamespace<Ns>}` : never;
   <
-    const Key extends ParseKeys<Ns, TOpt, KPrefix> | TemplateStringsArray,
-    const TOpt extends TOptions,
-    Ret extends TFunctionReturn<Ns, AppendKeyPrefix<Key, KPrefix>, TOpt>,
-    const ActualOptions extends TOpt & InterpolationMap<Ret> = TOpt & InterpolationMap<Ret>,
+    Key extends ParseKeys<Ns, TOptions, KPrefix>,
+    Ret extends TFunctionReturn<Ns, AppendKeyPrefix<Key, KPrefix>, TOptions>,
   >(
-    ...args:
-      | [key: Key | Key[], options?: ActualOptions]
-      | [key: string | string[], options: TOpt & $Dictionary & { defaultValue: string }]
-      | [key: string | string[], defaultValue: string, options?: TOpt & $Dictionary]
-  ): TFunctionReturnOptionalDetails<Ret, TOpt>;
+    ...args: Key extends `${string}${_InterpolationPrefix}${string}${_InterpolationSuffix}${string}`
+      ? [key: Key, options: TOptions & InterpolationMap<Key>]
+      : [key: Key, options?: TOptions & InterpolationMap<Key>]
+  ): TFunctionReturnOptionalDetails<Ret, TOptions>;
 }
 
 export type KeyPrefix<Ns extends Namespace> = ResourceKeys<true>[$FirstNamespace<Ns>] | undefined;

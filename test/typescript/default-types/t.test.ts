@@ -1,4 +1,4 @@
-import { describe, it, expectTypeOf } from 'vitest';
+import { describe, it, expectTypeOf, assertType } from 'vitest';
 import { TFunction } from 'i18next';
 
 describe('t', () => {
@@ -20,5 +20,16 @@ describe('t', () => {
     expectTypeOf(tOrdPlurals).toEqualTypeOf(tPlain);
     expectTypeOf(tPluralsOrd).toEqualTypeOf(tPlain);
     expectTypeOf(tString).toEqualTypeOf(tPlain);
+  });
+
+  const t = (() => '') as TFunction;
+
+  it('should succeed when passing number to a number interpolation', () => {
+    expectTypeOf(t('{{val, number}}', { val: 1 })).toEqualTypeOf<string>('string');
+  });
+
+  it('should error when passing a string to a number interpolation', () => {
+    // @ts-expect-error
+    assertType(t('{{val, number}}', { val: 'blah' }));
   });
 });
