@@ -37,6 +37,12 @@ describe('t', () => {
         t('foo', { defaultValue: t('bar'), something: t('bar') }),
       ).toEqualTypeOf<'foo'>();
     });
+
+    it('should work when passing string to a number interpolation with unset strictInterpolationTypes', () => {
+      expectTypeOf(t('qux', { val: 'str' })).toEqualTypeOf<'some {{val, number}}'>(
+        'some {{val, number}}',
+      );
+    });
   });
 
   describe('named default namespace usage', () => {

@@ -22,6 +22,7 @@ type _Resources = TypeOptions['resources'];
 type _JSONFormat = TypeOptions['jsonFormat'];
 type _InterpolationPrefix = TypeOptions['interpolationPrefix'];
 type _InterpolationSuffix = TypeOptions['interpolationSuffix'];
+type _StrictInterpolationTypes = TypeOptions['strictInterpolationTypes'];
 
 type $IsResourcesDefined = [keyof _Resources] extends [never] ? false : true;
 type $ValueIfResourcesDefined<Value, Fallback> = $IsResourcesDefined extends true
@@ -139,10 +140,50 @@ type ParseInterpolationValues<Ret> =
         | (Value extends `${infer ActualValue},${string}` ? ActualValue : Value)
         | ParseInterpolationValues<Rest>
     : never;
-type InterpolationMap<Ret> = Record<
+
+type DefaultInterpolationMap<Ret> = Record<
   $PreservedValue<ParseInterpolationValues<Ret>, string>,
   unknown
 >;
+
+type StrictParseInterpolationValues<Value extends string, Format> = Format extends
+  | 'number'
+  | 'currency'
+  ? Record<Value, Parameters<Intl.NumberFormat['format']>[0]> & {
+      formatParams?: Partial<Record<Value, Intl.NumberFormatOptions>>;
+    }
+  : Format extends 'datetime'
+  ? Record<Value, Parameters<Intl.DateTimeFormat['format']>[0]> & {
+      formatParams?: Partial<Record<Value, Intl.DateTimeFormatOptions>>;
+    }
+  : Format extends 'relativetime'
+  ? Record<Value, Parameters<Intl.RelativeTimeFormat['format']>[0]> & {
+      formatParams?: Partial<Record<Value, Intl.RelativeTimeFormatOptions>>;
+    }
+  : Format extends 'list'
+  ? Record<Value, Parameters<Intl.ListFormat['format']>[0]> & {
+      formatParams?: Partial<Record<Value, Intl.ListFormatOptions>>;
+    }
+  : Record<Value, any>;
+
+type StrictInterpolationMap<Ret> =
+  // Recursively parse each value within braces
+  Ret extends `${string}${_InterpolationPrefix}${infer Value}${_InterpolationSuffix}${infer Rest}`
+    ? // Handle format names like `{{val, number}}`
+      (Value extends `${infer ActualValue},${string}${infer Format}`
+        ? // Remove parameters from format names like `{{val, number(minimumFractionDigits: 2)}}`
+          Format extends `${infer ActualFormat}(${string}`
+          ? StrictParseInterpolationValues<ActualValue, ActualFormat>
+          : StrictParseInterpolationValues<ActualValue, Format>
+        : Record<Value, any>) &
+        StrictInterpolationMap<Rest>
+    : {};
+
+// Users can opt in to stricter typechecking of format values by setting `strictInterpolationTypes` to true.
+// See that option's documentation for more details.
+type InterpolationMap<Ret> = _StrictInterpolationTypes extends true
+  ? StrictInterpolationMap<Ret>
+  : DefaultInterpolationMap<Ret>;
 
 type ParseTReturnPlural<
   Res,

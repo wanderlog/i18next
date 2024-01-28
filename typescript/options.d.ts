@@ -101,6 +101,25 @@ export type TypeOptions = $MergeBy<
      * Suffix for interpolation
      */
     interpolationSuffix: '}}';
+
+    /**
+     * Whether to strictly check interpolation types. This can be helpful to avoid errors caused by passing incorrectly
+     * typed interpolations, but does make it harder to use custom types.
+     *
+     * Here's an example of an error that this can prevent:
+     *
+     * ```js
+     * // Poorly named variable
+     * const username = { name: 'some_user', ... };
+     *
+     * // Assuming key fallback
+     * t("Hello {{username}}", { username });
+     * // -> "Hello [object Object]"
+     * ```
+     *
+     * This is purely used for typechecking.
+     */
+    strictInterpolationTypes: false;
   },
   CustomTypeOptions
 >;
