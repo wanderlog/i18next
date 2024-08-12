@@ -109,14 +109,16 @@ class PluralResolver {
   }
 
   getRule(code, options = {}) {
+    console.log('cjs getRule2');
     if (this.shouldUseIntlApi()) {
       try {
-        return new Intl.PluralRules(getCleanedCode(code === 'dev' ? 'en' : code), { type: options.ordinal ? 'ordinal' : 'cardinal' });
+        return new Intl.PluralRules(getCleanedCode(code === 'dev' ? 'en' : code), {
+          type: options.ordinal ? 'ordinal' : 'cardinal'
+        });
       } catch (err) {
         return;
       }
     }
-
     return this.rules[code] || this.rules[this.languageUtils.getLanguagePartFromCode(code)];
   }
 
