@@ -1,3 +1,52 @@
+# Wanderlog fork
+
+This is Wanderlog's fork of i18next. We publish it to npm as
+[`@wanderlogapp/i18next`](https://www.npmjs.com/package/@wanderlogapp/i18next).
+The itineraries repo installs it with
+`"i18next": "npm:@wanderlogapp/i18next@…"`.
+
+## Releasing a new version
+
+First, commit and push your change to the `wanderlog` branch. Check
+https://github.com/wanderlog/i18next/tags for the latest version, and add 1 to
+the last number. Make sure `npm whoami` prints `wanderlogapp` (if not, run
+`npm login`). Then run:
+
+```shell
+VERSION='<substitute version here>' # e.g., VERSION='v23.8.1-wanderlog.4'
+
+# Start wanderlog-built from the latest commit on the wanderlog branch
+git fetch
+git checkout wanderlog-built
+git reset --hard origin/wanderlog
+
+# Build, and commit the build output (it's gitignored on the
+# wanderlog branch)
+npm install
+npm run build
+git add -f dist index.v4.d.ts
+
+# Rename the package for npm, and set its version (without the leading v)
+npm pkg set name='@wanderlogapp/i18next' version="${VERSION#v}"
+# Remove the prepare script: it runs husky, which isn't installed
+npm pkg delete scripts.prepare
+
+# Commit, tag, and push the release
+git commit -am "[$VERSION] Release built version"
+git tag "$VERSION"
+git push -f origin wanderlog-built "$VERSION"
+
+# Publish to npm. --ignore-scripts skips the package's build and install
+# scripts, since the built files are already committed
+npm publish --access public --ignore-scripts
+```
+
+Then, in itineraries, bump the version in the `npm:@wanderlogapp/i18next@…`
+alias and run `yarn install`. New `@wanderlogapp/*` versions skip the
+one-week age gate because of `npmPreapprovedPackages` in `.yarnrc.yml`.
+
+--------------------------------------------------------------------------------
+
 # i18next: learn once - translate everywhere [![Tweet](https://img.shields.io/twitter/url/http/shields.io.svg?style=social)](https://twitter.com/intent/tweet?text=Awesome%20i18next:%20learn%20once%20-%20translate%20everywhere%20-%20the%20internationalization%20ecosystem%20&url=https://github.com/i18next/i18next&via=jamuhl&hashtags=i18n,javascript,dev)
 
 [![Lint & Test](https://github.com/i18next/i18next/actions/workflows/lint_and_test.yml/badge.svg?branch=master)](https://github.com/i18next/i18next/actions/workflows/lint_and_test.yml)
